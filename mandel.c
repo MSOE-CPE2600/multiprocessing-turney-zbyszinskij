@@ -9,13 +9,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <math.h>
+#include <sys/wait.h>
 #include "jpegrw.h"
 
 // local routines
 static int iteration_to_color( int i, int max );
 static int iterations_at_point( double x, double y, int max );
 static void compute_image( imgRawImage *img, double xmin, double xmax,
-									double ymin, double ymax, int max );
+							double ymin, double ymax, int max );
 static void show_help();
 
 
@@ -25,7 +27,7 @@ int main( int argc, char *argv[] )
 
 	// These are the default configuration values used
 	// if no command line arguments are given.
-	const char *outfile = "mandel.jpg";
+	const char *outfile = "mandel%d.jpg";
 	double xcenter = 0;
 	double ycenter = 0;
 	double xscale = 4;
@@ -33,11 +35,12 @@ int main( int argc, char *argv[] )
 	int    image_width = 1000;
 	int    image_height = 1000;
 	int    max = 1000;
+    int children = 1;
 
 	// For each command line argument given,
 	// override the appropriate configuration value.
 
-	while((c = getopt(argc,argv,"x:y:s:W:H:m:o:h"))!=-1) {
+	while((c = getopt(argc,argv,"x:y:s:W:H:m:o:p:h"))!=-1) {
 		switch(c) 
 		{
 			case 'x':
@@ -58,38 +61,71 @@ int main( int argc, char *argv[] )
 			case 'm':
 				max = atoi(optarg);
 				break;
-			case 'o':
-				outfile = optarg;
-				break;
 			case 'h':
 				show_help();
 				exit(1);
 				break;
+            case 'p':
+                children = atoi(optarg);
+                break;    
 		}
 	}
+    double scaler = xscale / 50;
+	int work = ceil(50.0 / children);
+    for(int i = 0; i < children; i++){
 
-	// Calculate y scale based on x scale (settable) and image sizes in X and Y (settable)
-	yscale = xscale / image_width * image_height;
+        int fork_int = fork();
 
-	// Display the configuration of the image.
-	printf("mandel: x=%lf y=%lf xscale=%lf yscale=%1f max=%d outfile=%s\n",xcenter,ycenter,xscale,yscale,max,outfile);
+		xscale += scaler;
 
-	// Create a raw image of the appropriate size.
-	imgRawImage* img = initRawImage(image_width,image_height);
+		int work_start = i * work;
+		int work_end = (i + 1) * work;
+        
+		if(fork_int == 0){
+			
+			for(int s = work_start; s < work_end; s++){
 
-	// Fill it with a black
-	setImageCOLOR(img,0);
+				if(s >= 50){
+					exit(0);
+				}
 
-	// Compute the Mandelbrot image
-	compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max);
+				char child_out[50];
 
-	// Save the image in the stated file.
-	storeJpegImageFile(img,outfile);
+				sprintf(child_out, outfile, s);
 
-	// free the mallocs
-	freeRawImage(img);
+				// Calculate y scale based on x scale (settable) and image sizes in X and Y (settable)
+				yscale = xscale / image_width * image_height;
+
+				// Display the configuration of the image.
+				//printf("mandel: x=%lf y=%lf xscale=%lf yscale=%1f max=%d outfile=%s\n",xcenter,ycenter,xscale,yscale,max,child_out);
+
+				// Create a raw image of the appropriate size.
+				imgRawImage* img = initRawImage(image_width,image_height);
+
+				// Fill it with a black
+				setImageCOLOR(img,0);
+
+				// Compute the Mandelbrot image
+				compute_image(img,xcenter-xscale/2,xcenter+xscale/2,ycenter-yscale/2,ycenter+yscale/2,max);
+
+				// Save the image in the stated file.
+				storeJpegImageFile(img,child_out);
+
+				// free the mallocs
+				freeRawImage(img);
+
+			}
+
+			exit(0);
+
+        }
+
+    }
+
+    wait(NULL);
 
 	return 0;
+
 }
 
 
@@ -119,6 +155,7 @@ int iterations_at_point( double x, double y, int max )
 	}
 
 	return iter;
+    
 }
 
 /*
@@ -158,9 +195,28 @@ Convert a iteration number to a color.
 Here, we just scale to gray with a maximum of imax.
 Modify this function to make more interesting colors.
 */
+
 int iteration_to_color( int iters, int max )
 {
-	int color = 0xFFFFFF*iters/(double)max;
+	if (iters == max) {
+		return 0x000000;
+	}
+	
+	int r = 0, g = 0, b = 0;
+	
+	if (iters > 0) {
+		r = (iters * 9) % 256;
+		g = (iters * 3) % 256;
+		b = (iters * 5) % 256;
+	}
+	
+	if (iters < 50) {
+		r = (iters * 10) % 256;
+		g = (iters * 20) % 256;
+		b = (iters * 5) % 256;
+	}
+
+	int color = (r << 16) | (g << 8) | b;
 	return color;
 }
 
