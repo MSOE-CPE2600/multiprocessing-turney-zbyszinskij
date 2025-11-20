@@ -97,7 +97,7 @@ int main( int argc, char *argv[] )
 				yscale = xscale / image_width * image_height;
 
 				// Display the configuration of the image.
-				//printf("mandel: x=%lf y=%lf xscale=%lf yscale=%1f max=%d outfile=%s\n",xcenter,ycenter,xscale,yscale,max,child_out);
+				printf("mandel: x=%lf y=%lf xscale=%lf yscale=%1f max=%d outfile=%s\n",xcenter,ycenter,xscale,yscale,max,child_out);
 
 				// Create a raw image of the appropriate size.
 				imgRawImage* img = initRawImage(image_width,image_height);
